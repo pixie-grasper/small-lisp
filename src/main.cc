@@ -36,10 +36,26 @@ class File {
         index(0),
         forward_map{},
         backword_map{} {
+    init_maps();
     return;
   }
 
  private:
+  void init_maps() {
+    regist_as({}, SpecialTokenID::nil);
+    regist_as({'#', 't'},      SpecialTokenID::t);
+    regist_as({'#', 'f'},      SpecialTokenID::f);
+    regist_as({'('},           SpecialTokenID::lparent);
+    regist_as({')'},           SpecialTokenID::rparent);
+    regist_as({'\''},          SpecialTokenID::quote);
+    regist_as({'`'},           SpecialTokenID::quasiquote);
+    regist_as({','},           SpecialTokenID::comma);
+    regist_as({',', '@'},      SpecialTokenID::comma_at);
+    regist_as({'.'},           SpecialTokenID::dot);
+    regist_as({'.', '.', '.'}, SpecialTokenID::dots);
+    return;
+  }
+
   // it decodes from utf-8 stream
   Unicode get_next_unicode() {
     if (index >= source.size()) {
@@ -273,14 +289,20 @@ class File {
   TokenID regist(std::vector<Unicode>&& token) {
     auto it = forward_map.find(token);
     if (it == forward_map.end()) {
-      auto new_id = static_cast<TokenID>(SpecialTokenID::Max) +
-                    static_cast<TokenID>(forward_map.size());
+      auto new_id = static_cast<TokenID>(forward_map.size());
       forward_map[token] = new_id;
       backword_map[new_id] = std::move(token);
       return new_id;
     } else {
       return it->second;
     }
+  }
+
+  void regist_as(std::vector<Unicode>&& token, SpecialTokenID sid) {
+    auto id = static_cast<TokenID>(sid);
+    forward_map[token] = id;
+    backword_map[id] = std::move(token);
+    return;
   }
 };
 
