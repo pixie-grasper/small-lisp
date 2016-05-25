@@ -9,18 +9,146 @@
 #include <unistd.h>
 
 char* gets(char* s);
-#include <vector>
+#include <list>
 #include <map>
+#include <memory>
+#include <vector>
+
+enum class Type {
+  cell, token,
+};
+
+class Object {
+ public:
+  virtual ~Object() {
+    return;
+  }
+
+  virtual Type type() const = 0;
+  virtual void print() const = 0;
+};
+
+class Cell : public Object {
+ private:
+  std::shared_ptr<Object> a, d;
+
+ public:
+  Cell() : Object(), a(nullptr), d(nullptr) {
+    return;
+  }
+
+  template <typename T, typename U>
+  Cell(T&& a_, U&& d_)
+      : Object(),
+        a(std::forward<T>(a_)),
+        d(std::forward<U>(d_)) {
+    return;
+  }
+
+  ~Cell() override {
+    return;
+  }
+
+  Type type() const override {
+    return Type::cell;
+  }
+
+  void print(const std::shared_ptr<Object>& object) const {
+    if (object == nullptr) {
+      printf("()");
+    } else {
+      object->print();
+    }
+    return;
+  }
+
+  void print() const override {
+    printf("(");
+    print(a);
+    auto object_d = d;
+    for (; object_d != nullptr;) {
+      printf(" ");
+      if (object_d->type() == Type::cell) {
+        auto cell = std::dynamic_pointer_cast<Cell>(object_d);
+        print(cell->car());
+        object_d = cell->cdr();
+      } else {
+        printf(". ");
+        object_d->print();
+        break;
+      }
+    }
+    printf(")");
+    return;
+  }
+
+  const std::shared_ptr<Object>& car() const {
+    return a;
+  }
+
+  const std::shared_ptr<Object>& cdr() const {
+    return d;
+  }
+
+  template <typename T>
+  void set_car(T&& a_) {
+    a = std::forward<T>(a_);
+    return;
+  }
+
+  template <typename T>
+  void set_cdr(T&& d_) {
+    d = std::forward<T>(d_);
+    return;
+  }
+};
+
+using TokenID = uint64_t;
+class Token : public Object {
+ private:
+  const TokenID id;
+
+ public:
+  Token() = delete;
+
+  explicit Token(const TokenID& id_) : id(id_) {
+    return;
+  }
+
+  ~Token() override {
+    return;
+  }
+
+  Type type() const override {
+    return Type::token;
+  }
+
+  void print() const override {
+    printf("%zd", id);
+    return;
+  }
+
+  TokenID get_id() const {
+    return id;
+  }
+};
 
 class File {
  private:
   std::vector<uint8_t> source;
   std::size_t index;
 
+  enum class TokenType {
+    unknown = 0,
+    parent,
+    boolean, number, character, string, id, prefix, dot
+  };
+
   using Unicode = uint32_t;
-  using TokenID = uint64_t;
   std::map<std::vector<Unicode>, TokenID> forward_map;
   std::map<TokenID, std::vector<Unicode>> backword_map;
+  std::map<TokenID, TokenType> type_from_id;
+
   enum class SpecialTokenID {
     nil = 0,
     t, f,
@@ -40,19 +168,74 @@ class File {
     return;
   }
 
+  std::shared_ptr<Object> read() {
+    auto first_token = get_next_token_id();
+    switch (type_from_id[first_token]) {
+      case TokenType::boolean:
+      case TokenType::number:
+      case TokenType::character:
+      case TokenType::string:
+      case TokenType::id:
+        return std::make_shared<Token>(first_token);
+      case TokenType::prefix:
+        return std::make_shared<Cell>(std::make_shared<Token>(first_token),
+                                      read());
+      case TokenType::dot:
+      case TokenType::unknown:
+        return nullptr;
+      case TokenType::parent:
+        break;
+    }
+    if (first_token == static_cast<TokenID>(SpecialTokenID::rparent)) {
+      return nullptr;
+    }
+    auto ret = std::make_shared<Cell>();
+    auto current = ret;
+    std::shared_ptr<Cell> current_prev = nullptr;
+    for (;;) {
+      auto old_index = index;
+      auto second_token = get_next_token_id();
+      if (second_token == static_cast<TokenID>(SpecialTokenID::rparent)) {
+        return ret;
+      } else if (second_token == static_cast<TokenID>(SpecialTokenID::dot)) {
+        if (current_prev == nullptr) {
+          return nullptr;
+        } else {
+          current_prev->set_cdr(read());
+          auto last_token = get_next_token_id();
+          if (last_token != static_cast<TokenID>(SpecialTokenID::rparent)) {
+            return nullptr;
+          }
+          return ret;
+        }
+      }
+      index = old_index;
+      current->set_car(read());
+      if (current_prev != nullptr) {
+        current_prev->set_cdr(current);
+      }
+      current_prev = std::move(current);
+      current = std::make_shared<Cell>();
+    }
+  }
+
+  bool eof() {
+    return index == source.size();
+  }
+
  private:
   void init_maps() {
-    regist_as({}, SpecialTokenID::nil);
-    regist_as({'#', 't'},      SpecialTokenID::t);
-    regist_as({'#', 'f'},      SpecialTokenID::f);
-    regist_as({'('},           SpecialTokenID::lparent);
-    regist_as({')'},           SpecialTokenID::rparent);
-    regist_as({'\''},          SpecialTokenID::quote);
-    regist_as({'`'},           SpecialTokenID::quasiquote);
-    regist_as({','},           SpecialTokenID::comma);
-    regist_as({',', '@'},      SpecialTokenID::comma_at);
-    regist_as({'.'},           SpecialTokenID::dot);
-    regist_as({'.', '.', '.'}, SpecialTokenID::dots);
+    regist_as({},              SpecialTokenID::nil,         TokenType::unknown);
+    regist_as({'#', 't'},      SpecialTokenID::t,           TokenType::boolean);
+    regist_as({'#', 'f'},      SpecialTokenID::f,           TokenType::boolean);
+    regist_as({'('},           SpecialTokenID::lparent,     TokenType::parent);
+    regist_as({')'},           SpecialTokenID::rparent,     TokenType::parent);
+    regist_as({'\''},          SpecialTokenID::quote,       TokenType::prefix);
+    regist_as({'`'},           SpecialTokenID::quasiquote,  TokenType::prefix);
+    regist_as({','},           SpecialTokenID::comma,       TokenType::prefix);
+    regist_as({',', '@'},      SpecialTokenID::comma_at,    TokenType::prefix);
+    regist_as({'.'},           SpecialTokenID::dot,         TokenType::dot);
+    regist_as({'.', '.', '.'}, SpecialTokenID::dots,        TokenType::id);
     return;
   }
 
@@ -151,7 +334,7 @@ class File {
     }
   }
 
-  TokenID get_next_token() {
+  TokenID get_next_token_id() {
     auto c0 = get_next_unicode();
     while (c0 == ' ' || c0 == '\t' || c0 == '\r' || c0 == '\n') {
       c0 = get_next_unicode();
@@ -182,7 +365,7 @@ class File {
         for (;;) {
           auto ck = get_next_unicode();
           if (ck == '"') {
-            return regist(std::move(token));
+            return regist(std::move(token), TokenType::string);
           } else if (ck == 0) {
             return static_cast<TokenID>(SpecialTokenID::nil);
           } else if (ck == '\\') {
@@ -208,7 +391,7 @@ class File {
         if (c0 == 0) {
           return static_cast<TokenID>(SpecialTokenID::nil);
         }
-        return get_next_token();
+        return get_next_token_id();
       case '.':
       case '+':
       case '-': {
@@ -231,7 +414,7 @@ class File {
         } else {
           index = old_index;
           std::vector<Unicode> token{c0};
-          return regist(std::move(token));
+          return regist(std::move(token), TokenType::id);
         }
       }
       case '#': {
@@ -243,7 +426,7 @@ class File {
         } else if (c1 == '\\') {
           auto c2 = get_next_unicode();
           std::vector<Unicode> token{c0, c1, c2};
-          return regist(std::move(token));
+          return regist(std::move(token), TokenType::character);
         } else {
           return static_cast<TokenID>(SpecialTokenID::nil);
         }
@@ -252,7 +435,9 @@ class File {
         break;
     }
     std::vector<Unicode> token{c0};
+    auto type = TokenType::unknown;
     if (c0 == '.' || c0 == '+' || c0 == '-' || ('0' <= c0 && c0 <= '9')) {
+      type = TokenType::number;
       bool dotted = c0 == '.';
       for (;;) {
         auto old_index = index;
@@ -266,6 +451,7 @@ class File {
         token.push_back(ck);
       }
     } else {
+      type = TokenType::id;
       for (;;) {
         auto old_index = index;
         auto ck = get_next_unicode();
@@ -283,31 +469,44 @@ class File {
         }
       }
     }
-    return regist(std::move(token));
+    return regist(std::move(token), type);
   }
 
-  TokenID regist(std::vector<Unicode>&& token) {
+  TokenID regist(std::vector<Unicode>&& token, TokenType type) {
     auto it = forward_map.find(token);
     if (it == forward_map.end()) {
       auto new_id = static_cast<TokenID>(forward_map.size());
       forward_map[token] = new_id;
       backword_map[new_id] = std::move(token);
+      type_from_id[new_id] = type;
       return new_id;
     } else {
       return it->second;
     }
   }
 
-  void regist_as(std::vector<Unicode>&& token, SpecialTokenID sid) {
+  void regist_as(std::vector<Unicode>&& token,
+                 SpecialTokenID sid,
+                 TokenType type) {
     auto id = static_cast<TokenID>(sid);
     forward_map[token] = id;
     backword_map[id] = std::move(token);
+    type_from_id[id] = type;
     return;
   }
 };
 
 void eval(std::vector<uint8_t>&& stream) {
   File file(std::move(stream));
+  for (;;) {
+    auto list = file.read();
+    if (list == nullptr) {
+      break;
+    }
+    list->print();
+    puts("");
+  }
+  printf("%d\n", file.eof());
   return;
 }
 
