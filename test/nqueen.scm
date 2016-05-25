@@ -13,17 +13,11 @@
 (require rnrs/hashtables-6)   ; hashtable
 (require rnrs/control-6)      ; when を使うため
 
-(define (1+ x)
-  (+ x 1))
-
-(define (1- x)
-  (- x 1))
-
 (define (range n)
   (let loop((i 0) (ls1 '()))
     (if (= i n)
         (reverse ls1)
-      (loop (1+ i) (cons i ls1)))))
+      (loop (+ 1 i) (cons i ls1)))))
 
 (define (remove x ls)
   (let loop((ls0 ls) (ls1 '()))
@@ -40,7 +34,7 @@
     (cond
      ((null? ls0) #f)
      ((eqv? x (car ls0)) i)
-     (else (loop (cdr ls0) (1+ i))))))
+     (else (loop (cdr ls0) (+ 1 i))))))
 
 (define (print-lines . lines)
   (let loop((ls0 lines))
@@ -53,14 +47,14 @@
 
 ;; check if queens conflict each other
 (define (conflict? q qs)
-  (let loop((inc (1+ q)) (dec (1- q)) (ls0 qs))
+  (let loop((inc (+ 1 q)) (dec (- q 1)) (ls0 qs))
     (if (null? ls0)
         #f
       (let ((c (car ls0)))
         (or
          (= c inc)
          (= c dec)
-         (loop (1+ inc) (1- dec) (cdr ls0)))))))
+         (loop (+ 1 inc) (- dec 1) (cdr ls0)))))))
 
 ;;; convert int <-> list
 (define (q2int n qs)
@@ -82,7 +76,7 @@
     (let loop ((ls1 '()) (i 0))
       (if (= i n)
           ls1
-        (loop (cons (position i qs) ls1) (1+ i))))))
+        (loop (cons (position i qs) ls1) (+ 1 i))))))
 
 ;; turn 180 degree
 (define (t180 qs)
@@ -94,7 +88,7 @@
 
 ;; up side down
 (define (usd qs)
-  (let ((n (1- (length qs))))
+  (let ((n (- (length qs) 1)))
     (map (lambda (x) (- n x)) qs)))
 
 ;; reflection on diagonal 1
@@ -109,14 +103,14 @@
 ;;; plotting using gnuplot
 ;; drawing grid
 (define (draw-grid n)
-  (let ((p (number->string (1+ n))))
+  (let ((p (number->string (+ 1 n))))
     (let loop((i 0))
       (when (<= i n)
-          (let ((s (number->string (1+ i))))
+          (let ((s (number->string (+ 1 i))))
             (print-lines
              (string-append "set arrow from " s ", 1 to " s ", " p " nohead lt 5")
              (string-append "set arrow from 1, " s " to " p ", " s " nohead lt 5"))
-            (loop (1+ i)))))))
+            (loop (+ 1 i)))))))
     
 
 ;; plotting data file of the solution
@@ -124,10 +118,10 @@
   (let loop((i 0))
     (when (< i len)
          (print-lines
-          (string-append "set title \"solution: " (number->string (1+ i)) "\"")
+          (string-append "set title \"solution: " (number->string (+ 1 i)) "\"")
           (string-append "plot \"q" (number->string i) ".dat\" title \"queen\" with point pointsize 3")
           "pause -1 \"Hit return to continue\"")
-         (loop (1+ i)))))
+         (loop (+ 1 i)))))
 
 ;; writing data files
 (define (q-write-dat qls)
@@ -138,8 +132,8 @@
               (let rec((j 0) (ls1 (car ls)))
                 (when (pair? ls1)
                      (print-lines (string-append (number->string (+ j 1.5)) " " (number->string (+ (car ls1) 1.5))))
-                     (rec (1+ j) (cdr ls1))))))
-         (loop (1+ i) (cdr ls)))))
+                     (rec (+ 1 j) (cdr ls1))))))
+         (loop (+ 1 i) (cdr ls)))))
                    
 ;; making a command file for gnuplot                
 (define (qplot n qls)
@@ -175,7 +169,7 @@
                           (q-sethash qs)
                         (for-each (lambda (x)
                                     (or (conflict? x qs)
-                                        (q-add (cons x qs) (1+ i) (remove x pool))))
+                                        (q-add (cons x qs) (+ 1 i) (remove x pool))))
                                   pool)))))
                       
             (q-add '() 0 (range n)))
@@ -218,7 +212,7 @@
                           (q-sethash qs)
                         (for-each (lambda (x)
                                     (or (conflict? x qs)
-                                        (q-add (cons x qs) (1+ i) (remove x pool))))
+                                        (q-add (cons x qs) (+ 1 i) (remove x pool))))
                                   pool)))))
                       
             (q-add '() 0 (range n)))
