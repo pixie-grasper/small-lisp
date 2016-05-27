@@ -26,6 +26,7 @@ class Object {
 
   virtual Type type() const = 0;
   virtual void print() const = 0;
+  virtual std::shared_ptr<Object> eval() const = 0;
 };
 
 class Cell : public Object {
@@ -82,6 +83,11 @@ class Cell : public Object {
     return;
   }
 
+  // TODO(pixie): implement
+  std::shared_ptr<Object> eval() const override {
+    return a;
+  }
+
   const std::shared_ptr<Object>& car() const {
     return a;
   }
@@ -106,13 +112,23 @@ class Cell : public Object {
 using TokenID = uint64_t;
 class Token : public Object {
  private:
+  std::weak_ptr<Object> self;
   const TokenID id;
+
+  explicit Token(TokenID id_) : self(), id(id_) {
+    return;
+  }
 
  public:
   Token() = delete;
 
-  explicit Token(const TokenID& id_) : id(id_) {
-    return;
+  static std::shared_ptr<Token> make(TokenID id) {
+    struct impl : public Token {
+      explicit impl(TokenID id_) : Token(id_) {}
+    };
+    auto ret = std::make_shared<impl>(id);
+    ret->self = ret;
+    return ret;
   }
 
   ~Token() override {
@@ -126,6 +142,10 @@ class Token : public Object {
   void print() const override {
     printf("%zd", id);
     return;
+  }
+
+  std::shared_ptr<Object> eval() const override {
+    return self.lock();
   }
 
   TokenID get_id() const {
@@ -179,10 +199,9 @@ class File {
       case TokenType::string:
       case TokenType::id:
       case TokenType::special_id:
-        return std::make_shared<Token>(first_token);
+        return Token::make(first_token);
       case TokenType::prefix:
-        return std::make_shared<Cell>(std::make_shared<Token>(first_token),
-                                      read());
+        return std::make_shared<Cell>(Token::make(first_token), read());
       case TokenType::dot:
       case TokenType::unknown:
         return nullptr;
@@ -547,14 +566,17 @@ class File {
 void eval(std::vector<uint8_t>&& stream) {
   File file(std::move(stream));
   for (;;) {
+    // parse
     auto list = file.read();
     if (list == nullptr) {
       break;
     }
-    list->print();
+
+    // eval
+    auto result = list->eval();
+    result->print();
     puts("");
   }
-  printf("%d\n", file.eof());
   return;
 }
 
