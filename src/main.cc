@@ -226,6 +226,29 @@ class File {
     return index == source.size();
   }
 
+  TokenType token_type_from_id(TokenID id) {
+    auto it = type_from_id.find(id);
+    if (it == type_from_id.end()) {
+      return TokenType::unknown;
+    } else {
+      return it->second;
+    }
+  }
+
+  void token_type_specialize(TokenID id) {
+    type_from_id[id] = TokenType::special_id;
+    return;
+  }
+
+  const std::vector<Unicode>& token_from_id(TokenID id) {
+    auto it = backword_map.find(id);
+    if (it == backword_map.end()) {
+      return backword_map[static_cast<TokenID>(SpecialTokenID::nil)];
+    } else {
+      return it->second;
+    }
+  }
+
  private:
   void init_maps() {
     regist_as({},              SpecialTokenID::nil,         TokenType::unknown);
