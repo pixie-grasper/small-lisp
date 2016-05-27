@@ -18,6 +18,17 @@ enum class Type {
   cell, token,
 };
 
+enum class SpecialTokenID {
+  nil = 0,
+  t, f,
+  lparent, rparent,
+  quote, quasiquote, comma, comma_at,
+  dot, dots,
+  cons, car, cdr, atom, eq, cond, lambda, define,
+  add, sub, mul, div, mod, le, lt, ge, gt,
+  Max
+};
+
 class Object {
  public:
   virtual ~Object() {
@@ -151,17 +162,6 @@ class Token : public Object {
   TokenID get_id() const {
     return id;
   }
-};
-
-enum class SpecialTokenID {
-  nil = 0,
-  t, f,
-  lparent, rparent,
-  quote, quasiquote, comma, comma_at,
-  dot, dots,
-  cons, car, cdr, atom, eq, cond, lambda, define,
-  add, sub, mul, div, mod, le, lt, ge, gt,
-  Max
 };
 
 class File {
