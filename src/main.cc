@@ -252,15 +252,15 @@ class File {
               SpecialTokenID::define, TokenType::special_id);
     regist_as({'q', 'u', 'o', 't', 'e'},
               SpecialTokenID::quote,  TokenType::special_id);
-    regist_as({'a', 'd', 'd'}, SpecialTokenID::add, TokenType::id);
-    regist_as({'s', 'u', 'b'}, SpecialTokenID::sub, TokenType::id);
-    regist_as({'m', 'u', 'l'}, SpecialTokenID::mul, TokenType::id);
-    regist_as({'d', 'i', 'v'}, SpecialTokenID::div, TokenType::id);
-    regist_as({'m', 'o', 'd'}, SpecialTokenID::mod, TokenType::id);
-    regist_as({'l', 'e'},      SpecialTokenID::le,  TokenType::id);
-    regist_as({'l', 't'},      SpecialTokenID::lt,  TokenType::id);
-    regist_as({'g', 'e'},      SpecialTokenID::ge,  TokenType::id);
-    regist_as({'g', 't'},      SpecialTokenID::gt,  TokenType::id);
+    regist_as({'+'},      SpecialTokenID::add, TokenType::id);
+    regist_as({'-'},      SpecialTokenID::sub, TokenType::id);
+    regist_as({'*'},      SpecialTokenID::mul, TokenType::id);
+    regist_as({'/'},      SpecialTokenID::div, TokenType::id);
+    regist_as({'%'},      SpecialTokenID::mod, TokenType::id);
+    regist_as({'<', '='}, SpecialTokenID::le,  TokenType::id);
+    regist_as({'<'},      SpecialTokenID::lt,  TokenType::id);
+    regist_as({'>', '='}, SpecialTokenID::ge,  TokenType::id);
+    regist_as({'>'},      SpecialTokenID::gt,  TokenType::id);
     return;
   }
 
