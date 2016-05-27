@@ -133,6 +133,17 @@ class Token : public Object {
   }
 };
 
+enum class SpecialTokenID {
+  nil = 0,
+  t, f,
+  lparent, rparent,
+  quote, quasiquote, comma, comma_at,
+  dot, dots,
+  cons, car, cdr, atom, eq, cond, lambda, define,
+  add, sub, mul, div, mod, le, lt, ge, gt,
+  Max
+};
+
 class File {
  private:
   std::vector<uint8_t> source;
@@ -141,22 +152,13 @@ class File {
   enum class TokenType {
     unknown = 0,
     parent,
-    boolean, number, character, string, id, prefix, dot
+    boolean, number, character, string, id, prefix, dot, special_id,
   };
 
   using Unicode = uint32_t;
   std::map<std::vector<Unicode>, TokenID> forward_map;
   std::map<TokenID, std::vector<Unicode>> backword_map;
   std::map<TokenID, TokenType> type_from_id;
-
-  enum class SpecialTokenID {
-    nil = 0,
-    t, f,
-    lparent, rparent,
-    quote, quasiquote, comma, comma_at,
-    dot, dots,
-    Max
-  };
 
  public:
   explicit File(std::vector<uint8_t>&& source_)
@@ -176,6 +178,7 @@ class File {
       case TokenType::character:
       case TokenType::string:
       case TokenType::id:
+      case TokenType::special_id:
         return std::make_shared<Token>(first_token);
       case TokenType::prefix:
         return std::make_shared<Cell>(std::make_shared<Token>(first_token),
@@ -236,6 +239,28 @@ class File {
     regist_as({',', '@'},      SpecialTokenID::comma_at,    TokenType::prefix);
     regist_as({'.'},           SpecialTokenID::dot,         TokenType::dot);
     regist_as({'.', '.', '.'}, SpecialTokenID::dots,        TokenType::id);
+    regist_as({'c', 'o', 'n', 's'}, SpecialTokenID::cons,   TokenType::id);
+    regist_as({'c', 'a', 'r'},      SpecialTokenID::car,    TokenType::id);
+    regist_as({'c', 'd', 'r'},      SpecialTokenID::cdr,    TokenType::id);
+    regist_as({'a', 't', 'o', 'm'}, SpecialTokenID::atom,   TokenType::id);
+    regist_as({'e', 'q'},           SpecialTokenID::eq,     TokenType::id);
+    regist_as({'c', 'o', 'n', 'd'},
+              SpecialTokenID::cond,   TokenType::special_id);
+    regist_as({'l', 'a', 'm', 'b', 'd', 'a'},
+              SpecialTokenID::lambda, TokenType::special_id);
+    regist_as({'d', 'e', 'f', 'i', 'n', 'e'},
+              SpecialTokenID::define, TokenType::special_id);
+    regist_as({'q', 'u', 'o', 't', 'e'},
+              SpecialTokenID::quote,  TokenType::special_id);
+    regist_as({'a', 'd', 'd'}, SpecialTokenID::add, TokenType::id);
+    regist_as({'s', 'u', 'b'}, SpecialTokenID::sub, TokenType::id);
+    regist_as({'m', 'u', 'l'}, SpecialTokenID::mul, TokenType::id);
+    regist_as({'d', 'i', 'v'}, SpecialTokenID::div, TokenType::id);
+    regist_as({'m', 'o', 'd'}, SpecialTokenID::mod, TokenType::id);
+    regist_as({'l', 'e'},      SpecialTokenID::le,  TokenType::id);
+    regist_as({'l', 't'},      SpecialTokenID::lt,  TokenType::id);
+    regist_as({'g', 'e'},      SpecialTokenID::ge,  TokenType::id);
+    regist_as({'g', 't'},      SpecialTokenID::gt,  TokenType::id);
     return;
   }
 
