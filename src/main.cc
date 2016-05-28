@@ -24,7 +24,7 @@ enum class SpecialTokenID {
   lparent, rparent,
   quote, quasiquote, comma, comma_at,
   dot, dots,
-  cons, car, cdr, atom, eq, cond, lambda, define,
+  cons, car, cdr, atom, eq, cond, lambda, define, quote2,
   add, sub, mul, div, mod, le, lt, ge, gt,
   Max
 };
@@ -293,7 +293,7 @@ class File {
     regist_as({'d', 'e', 'f', 'i', 'n', 'e'},
               SpecialTokenID::define, TokenType::special_id);
     regist_as({'q', 'u', 'o', 't', 'e'},
-              SpecialTokenID::quote,  TokenType::special_id);
+              SpecialTokenID::quote2, TokenType::special_id);
     regist_as({'+'},      SpecialTokenID::add, TokenType::id);
     regist_as({'-'},      SpecialTokenID::sub, TokenType::id);
     regist_as({'*'},      SpecialTokenID::mul, TokenType::id);
