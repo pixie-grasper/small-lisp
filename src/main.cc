@@ -201,7 +201,9 @@ class File {
       case TokenType::special_id:
         return Token::make(first_token);
       case TokenType::prefix:
-        return std::make_shared<Cell>(Token::make(first_token), read());
+        // prefix item -> '(prefix item)
+        return std::make_shared<Cell>(Token::make(first_token),
+               std::make_shared<Cell>(read(), nullptr));
       case TokenType::dot:
       case TokenType::unknown:
         return nullptr;
@@ -218,9 +220,17 @@ class File {
       auto old_index = index;
       auto second_token = get_next_token_id();
       if (second_token == static_cast<TokenID>(SpecialTokenID::rparent)) {
-        return ret;
+        if (current_prev == nullptr) {
+          // (a b) == (a . (b . nil))
+          // (a) == (a . nil)
+          // () == nil
+          return nullptr;
+        } else {
+          return ret;
+        }
       } else if (second_token == static_cast<TokenID>(SpecialTokenID::dot)) {
         if (current_prev == nullptr) {
+          // invalid `("(" "." ,@any)
           return nullptr;
         } else {
           current_prev->set_cdr(read());
@@ -572,9 +582,8 @@ void eval(std::vector<uint8_t>&& stream) {
       break;
     }
 
-    // eval
-    auto result = list->eval();
-    result->print();
+    // print
+    list->print();
     puts("");
   }
   return;
