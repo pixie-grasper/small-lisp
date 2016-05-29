@@ -14,6 +14,8 @@ char* gets(char* s);
 #include <memory>
 #include <vector>
 
+using TokenID = uint64_t;
+
 enum class Type {
   cell, token,
 };
@@ -37,7 +39,6 @@ class Object {
 
   virtual Type type() const = 0;
   virtual void print() const = 0;
-  virtual std::shared_ptr<Object> eval() const = 0;
 };
 
 class Cell : public Object {
@@ -94,11 +95,6 @@ class Cell : public Object {
     return;
   }
 
-  // TODO(pixie): implement
-  std::shared_ptr<Object> eval() const override {
-    return a;
-  }
-
   const std::shared_ptr<Object>& car() const {
     return a;
   }
@@ -120,13 +116,11 @@ class Cell : public Object {
   }
 };
 
-using TokenID = uint64_t;
 class Token : public Object {
  private:
-  std::weak_ptr<Object> self;
   const TokenID id;
 
-  explicit Token(TokenID id_) : self(), id(id_) {
+  explicit Token(TokenID id_) : id(id_) {
     return;
   }
 
@@ -137,9 +131,7 @@ class Token : public Object {
     struct impl : public Token {
       explicit impl(TokenID id_) : Token(id_) {}
     };
-    auto ret = std::make_shared<impl>(id);
-    ret->self = ret;
-    return ret;
+    return std::make_shared<impl>(id);
   }
 
   ~Token() override {
@@ -155,10 +147,6 @@ class Token : public Object {
     return;
   }
 
-  std::shared_ptr<Object> eval() const override {
-    return self.lock();
-  }
-
   TokenID get_id() const {
     return id;
   }
@@ -172,7 +160,7 @@ class File {
   enum class TokenType {
     unknown = 0,
     parent,
-    boolean, number, character, string, id, prefix, dot, special_id,
+    boolean, number, character, string, id, prefix, dot,
   };
 
   using Unicode = uint32_t;
@@ -198,7 +186,6 @@ class File {
       case TokenType::character:
       case TokenType::string:
       case TokenType::id:
-      case TokenType::special_id:
         return Token::make(first_token);
       case TokenType::prefix:
         // prefix item -> '(prefix item)
@@ -264,11 +251,6 @@ class File {
     }
   }
 
-  void token_type_specialize(TokenID id) {
-    type_from_id[id] = TokenType::special_id;
-    return;
-  }
-
   const std::vector<Unicode>& token_from_id(TokenID id) {
     auto it = backword_map.find(id);
     if (it == backword_map.end()) {
@@ -297,13 +279,13 @@ class File {
     regist_as({'a', 't', 'o', 'm'}, SpecialTokenID::atom,   TokenType::id);
     regist_as({'e', 'q'},           SpecialTokenID::eq,     TokenType::id);
     regist_as({'c', 'o', 'n', 'd'},
-              SpecialTokenID::cond,   TokenType::special_id);
+              SpecialTokenID::cond,   TokenType::id);
     regist_as({'l', 'a', 'm', 'b', 'd', 'a'},
-              SpecialTokenID::lambda, TokenType::special_id);
+              SpecialTokenID::lambda, TokenType::id);
     regist_as({'d', 'e', 'f', 'i', 'n', 'e'},
-              SpecialTokenID::define, TokenType::special_id);
+              SpecialTokenID::define, TokenType::id);
     regist_as({'q', 'u', 'o', 't', 'e'},
-              SpecialTokenID::quote2, TokenType::special_id);
+              SpecialTokenID::quote2, TokenType::id);
     regist_as({'+'},      SpecialTokenID::add, TokenType::id);
     regist_as({'-'},      SpecialTokenID::sub, TokenType::id);
     regist_as({'*'},      SpecialTokenID::mul, TokenType::id);
