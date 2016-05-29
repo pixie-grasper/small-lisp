@@ -558,6 +558,7 @@ class File {
 
 enum class ISA {
   load_true, load_false, load_number, load_character, load_string,
+  load_dynamic, load_up, mov,
   cons, car, cdr, atom, eq
 };
 
@@ -592,6 +593,15 @@ struct Instruction {
         break;
       case ISA::load_string:
         printf("r%zu <- token[%zu]\n", operand[0], operand[1]);
+        break;
+      case ISA::load_dynamic:
+        printf("r%zu <- dynamic_table[%zu]\n", operand[0], operand[1]);
+        break;
+      case ISA::load_up:
+        printf("r%zu <- up_table[%zu]\n", operand[0], operand[1]);
+        break;
+      case ISA::mov:
+        printf("r%zu <- r%zu\n", operand[0], operand[1]);
         break;
       case ISA::cons:
         printf("r%zu <- cons r%zu, r%zu\n", operand[0], operand[1], operand[2]);
@@ -651,10 +661,42 @@ struct Snippet {
   }
 };
 
+class Scope {
+ public:
+  static constexpr uint64_t not_found = 0xffffffff;
+  static constexpr uint64_t found_but_in_the_up = 0xfffffffe;
+
+ private:
+  std::shared_ptr<Scope> up_values;
+  std::map<TokenID, uint64_t> lexical_scope;
+
+ public:
+  Scope() : up_values(nullptr), lexical_scope{} {
+    return;
+  }
+
+  explicit Scope(std::shared_ptr<Scope> scope)
+      : up_values(scope),
+        lexical_scope{} {
+    return;
+  }
+
+  uint64_t find(TokenID id) const {
+    auto it = lexical_scope.find(id);
+    if (it != lexical_scope.end()) {
+      return it->second;
+    } else if (up_values != nullptr && up_values->find(id) != not_found) {
+      return found_but_in_the_up;
+    }
+    return not_found;
+  }
+};
+
 Snippet compile(std::shared_ptr<Object> x,
              const File& file,
              uint64_t shift_width,
-             struct Snippet&& snippet) {
+             struct Snippet&& snippet,
+             std::shared_ptr<Scope> scope) {
   if (x->type() == Type::token) {
     auto id = std::dynamic_pointer_cast<Token>(x)->get_id();
     auto type = file.token_type_from_id(id);
@@ -672,6 +714,15 @@ Snippet compile(std::shared_ptr<Object> x,
       snippet.push_back(Instruction(ISA::load_character, shift_width, value));
     } else if (type == TokenType::string) {
       snippet.push_back(Instruction(ISA::load_string, shift_width, id));
+    } else {
+      auto reg_num = scope->find(id);
+      if (reg_num == Scope::not_found) {
+        snippet.push_back(Instruction(ISA::load_dynamic, shift_width, id));
+      } else if (reg_num == Scope::found_but_in_the_up) {
+        snippet.push_back(Instruction(ISA::load_up, shift_width, id));
+      } else {
+        snippet.push_back(Instruction(ISA::mov, shift_width, reg_num));
+      }
     }
   } else {
     auto x_ = std::dynamic_pointer_cast<Cell>(x);
@@ -687,7 +738,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -695,7 +746,11 @@ Snippet compile(std::shared_ptr<Object> x,
         auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
         auto addx = ddx_->car();
         auto dddx = ddx_->cdr();
-        snippet = compile(addx, file, shift_width + 1, std::move(snippet));
+        snippet = compile(addx,
+                          file,
+                          shift_width + 1,
+                          std::move(snippet),
+                          scope);
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -712,7 +767,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -725,7 +780,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -738,7 +793,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -752,7 +807,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -760,7 +815,11 @@ Snippet compile(std::shared_ptr<Object> x,
         auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
         auto addx = ddx_->car();
         auto dddx = ddx_->cdr();
-        snippet = compile(addx, file, shift_width + 1, std::move(snippet));
+        snippet = compile(addx,
+                          file,
+                          shift_width + 1,
+                          std::move(snippet),
+                          scope);
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -789,7 +848,8 @@ void eval(std::vector<uint8_t>&& stream) {
     puts("");
 
     // compile
-    compile(list, file, 0, {}).print();
+    auto compiled = compile(list, file, 0, {}, std::make_shared<Scope>());
+    compiled.print();
     puts("");
   }
   return;

@@ -5,3 +5,5 @@
 (cdr (cons 10 20))
 (atom 10)
 (eq 10 20)
+
+(cons *a* *b*)
