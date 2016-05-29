@@ -555,6 +555,95 @@ class File {
   }
 };
 
+enum class ISA {
+  load, cons,
+};
+
+struct Instruction {
+  ISA instruction;
+  uint64_t operand[3];
+
+  explicit Instruction(ISA inst,
+                       uint64_t o1 = 0,
+                       uint64_t o2 = 0,
+                       uint64_t o3 = 0)
+      : instruction(inst),
+        operand{o1, o2, o3} {
+    return;
+  }
+
+  void print() {
+    switch (instruction) {
+      case ISA::load:
+        printf("load r%zu, %zu\n", operand[0], operand[1]);
+        break;
+      case ISA::cons:
+        printf("cons r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
+        break;
+    }
+    return;
+  }
+};
+
+struct Snippet {
+  std::shared_ptr<std::vector<Instruction>> instructions;
+
+  Snippet() : instructions(std::make_shared<std::vector<Instruction>>()) {
+    return;
+  }
+
+  void push_back(Instruction&& inst) {
+    instructions->push_back(std::move(inst));
+    return;
+  }
+
+  void print() {
+    for (auto it = instructions->begin(); it != instructions->end(); ++it) {
+      it->print();
+    }
+  }
+};
+
+Snippet compile(std::shared_ptr<Object> x,
+             uint64_t shift_width,
+             struct Snippet&& snippet) {
+  if (x->type() == Type::token) {
+    auto id = std::dynamic_pointer_cast<Token>(x)->get_id();
+    snippet.push_back(Instruction(ISA::load, shift_width, id));
+  } else {
+    auto x_ = std::dynamic_pointer_cast<Cell>(x);
+    auto ax = x_->car();
+    auto dx = x_->cdr();
+    if (ax->type() == Type::token) {
+      auto op = std::dynamic_pointer_cast<Token>(ax)->get_id();
+      if (op == static_cast<TokenID>(SpecialTokenID::cons)) {
+        if (dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        snippet = compile(adx, shift_width, std::move(snippet));
+        if (ddx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
+        auto addx = ddx_->car();
+        auto dddx = ddx_->cdr();
+        snippet = compile(addx, shift_width + 1, std::move(snippet));
+        if (dddx != nullptr) {
+          fprintf(stderr, "error.\n");
+        }
+        snippet.push_back(Instruction(ISA::cons,
+                                      shift_width,
+                                      shift_width,
+                                      shift_width + 1));
+      }
+    }
+  }
+  return std::move(snippet);
+}
+
 void eval(std::vector<uint8_t>&& stream) {
   File file(std::move(stream));
   for (;;) {
@@ -566,6 +655,10 @@ void eval(std::vector<uint8_t>&& stream) {
 
     // print
     list->print();
+    puts("");
+
+    // compile
+    compile(list, 0, {}).print();
     puts("");
   }
   return;
