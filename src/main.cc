@@ -577,36 +577,36 @@ struct Instruction {
   void print() {
     switch (instruction) {
       case ISA::load_true:
-        printf("load_true r%zu\n", operand[0]);
+        printf("r%zu <- true\n", operand[0]);
         break;
       case ISA::load_false:
-        printf("load_false r%zu\n", operand[0]);
+        printf("r%zu <- false\n", operand[0]);
         break;
       case ISA::load_number:
-        printf("load_number r%zu, %zd\n", operand[0], operand[1]);
+        printf("r%zu <- %zd\n", operand[0], operand[1]);
         break;
       case ISA::load_character:
-        printf("load_character r%zu, '%c'\n",
+        printf("r%zu <- '%c'\n",
                operand[0],
                static_cast<int>(operand[1]));
         break;
       case ISA::load_string:
-        printf("load_string r%zu, %zu\n", operand[0], operand[1]);
+        printf("r%zu <- token[%zu]\n", operand[0], operand[1]);
         break;
       case ISA::cons:
-        printf("cons r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
+        printf("r%zu <- cons r%zu, r%zu\n", operand[0], operand[1], operand[2]);
         break;
       case ISA::car:
-        printf("car r%zu, r%zu\n", operand[0], operand[1]);
+        printf("r%zu <- car r%zu\n", operand[0], operand[1]);
         break;
       case ISA::cdr:
-        printf("cdr r%zu, r%zu\n", operand[0], operand[1]);
+        printf("r%zu <- cdr r%zu\n", operand[0], operand[1]);
         break;
       case ISA::atom:
-        printf("atom r%zu, r%zu\n", operand[0], operand[1]);
+        printf("r%zu <- atom r%zu\n", operand[0], operand[1]);
         break;
       case ISA::eq:
-        printf("eq r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
+        printf("r%zu <- eq r%zu, r%zu\n", operand[0], operand[1], operand[2]);
         break;
     }
     return;
