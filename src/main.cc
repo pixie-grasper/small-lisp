@@ -20,6 +20,12 @@ enum class Type {
   cell, token,
 };
 
+enum class TokenType {
+  unknown = 0,
+  parent,
+  boolean, number, character, string, id, prefix, dot,
+};
+
 enum class SpecialTokenID {
   nil = 0,
   t, f,
@@ -152,18 +158,12 @@ class Token : public Object {
   }
 };
 
+using Unicode = uint32_t;
 class File {
  private:
   std::vector<uint8_t> source;
   std::size_t index;
 
-  enum class TokenType {
-    unknown = 0,
-    parent,
-    boolean, number, character, string, id, prefix, dot,
-  };
-
-  using Unicode = uint32_t;
   std::map<std::vector<Unicode>, TokenID> forward_map;
   std::map<TokenID, std::vector<Unicode>> backword_map;
   std::map<TokenID, TokenType> type_from_id;
@@ -242,7 +242,7 @@ class File {
     return index == source.size();
   }
 
-  TokenType token_type_from_id(TokenID id) {
+  TokenType token_type_from_id(TokenID id) const {
     auto it = type_from_id.find(id);
     if (it == type_from_id.end()) {
       return TokenType::unknown;
@@ -251,10 +251,11 @@ class File {
     }
   }
 
-  const std::vector<Unicode>& token_from_id(TokenID id) {
+  const std::vector<Unicode>& token_from_id(TokenID id) const {
     auto it = backword_map.find(id);
     if (it == backword_map.end()) {
-      return backword_map[static_cast<TokenID>(SpecialTokenID::nil)];
+      auto nil = static_cast<TokenID>(SpecialTokenID::nil);
+      return backword_map.find(nil)->second;
     } else {
       return it->second;
     }
@@ -556,7 +557,8 @@ class File {
 };
 
 enum class ISA {
-  load, cons, car, cdr, atom, eq
+  load_true, load_false, load_number, load_character, load_string,
+  cons, car, cdr, atom, eq
 };
 
 struct Instruction {
@@ -574,8 +576,22 @@ struct Instruction {
 
   void print() {
     switch (instruction) {
-      case ISA::load:
-        printf("load r%zu, %zu\n", operand[0], operand[1]);
+      case ISA::load_true:
+        printf("load_true r%zu\n", operand[0]);
+        break;
+      case ISA::load_false:
+        printf("load_false r%zu\n", operand[0]);
+        break;
+      case ISA::load_number:
+        printf("load_number r%zu, %zd\n", operand[0], operand[1]);
+        break;
+      case ISA::load_character:
+        printf("load_character r%zu, '%c'\n",
+               operand[0],
+               static_cast<int>(operand[1]));
+        break;
+      case ISA::load_string:
+        printf("load_string r%zu, %zu\n", operand[0], operand[1]);
         break;
       case ISA::cons:
         printf("cons r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
@@ -597,6 +613,25 @@ struct Instruction {
   }
 };
 
+int64_t itoa(const std::vector<Unicode>& v) {
+  int64_t ret = 0;
+  bool sign = false;
+  for (auto&& ch : v) {
+    if (ch == '-') {
+      sign = true;
+    } else if ('0' <= ch && ch <= '9') {
+      ret = ret * 10 + ch - '0';
+    } else if (ch == '.') {
+      break;
+    }
+  }
+  if (sign) {
+    return -ret;
+  } else {
+    return ret;
+  }
+}
+
 struct Snippet {
   std::shared_ptr<std::vector<Instruction>> instructions;
 
@@ -617,11 +652,27 @@ struct Snippet {
 };
 
 Snippet compile(std::shared_ptr<Object> x,
+             const File& file,
              uint64_t shift_width,
              struct Snippet&& snippet) {
   if (x->type() == Type::token) {
     auto id = std::dynamic_pointer_cast<Token>(x)->get_id();
-    snippet.push_back(Instruction(ISA::load, shift_width, id));
+    auto type = file.token_type_from_id(id);
+    if (type == TokenType::boolean) {
+      if (file.token_from_id(id)[1] == 't') {
+        snippet.push_back(Instruction(ISA::load_true, shift_width));
+      } else {
+        snippet.push_back(Instruction(ISA::load_false, shift_width));
+      }
+    } else if (type == TokenType::number) {
+      auto value = static_cast<uint64_t>(itoa(file.token_from_id(id)));
+      snippet.push_back(Instruction(ISA::load_number, shift_width, value));
+    } else if (type == TokenType::character) {
+      auto value = file.token_from_id(id)[2];
+      snippet.push_back(Instruction(ISA::load_character, shift_width, value));
+    } else if (type == TokenType::string) {
+      snippet.push_back(Instruction(ISA::load_string, shift_width, id));
+    }
   } else {
     auto x_ = std::dynamic_pointer_cast<Cell>(x);
     auto ax = x_->car();
@@ -636,7 +687,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet));
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -644,7 +695,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
         auto addx = ddx_->car();
         auto dddx = ddx_->cdr();
-        snippet = compile(addx, shift_width + 1, std::move(snippet));
+        snippet = compile(addx, file, shift_width + 1, std::move(snippet));
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -661,7 +712,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet));
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -674,7 +725,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet));
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -687,7 +738,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet));
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -701,7 +752,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, shift_width, std::move(snippet));
+        snippet = compile(adx, file, shift_width, std::move(snippet));
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -709,7 +760,7 @@ Snippet compile(std::shared_ptr<Object> x,
         auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
         auto addx = ddx_->car();
         auto dddx = ddx_->cdr();
-        snippet = compile(addx, shift_width + 1, std::move(snippet));
+        snippet = compile(addx, file, shift_width + 1, std::move(snippet));
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -738,7 +789,7 @@ void eval(std::vector<uint8_t>&& stream) {
     puts("");
 
     // compile
-    compile(list, 0, {}).print();
+    compile(list, file, 0, {}).print();
     puts("");
   }
   return;
