@@ -629,7 +629,7 @@ Snippet compile(std::shared_ptr<Object> x,
     if (ax->type() == Type::token) {
       auto op = std::dynamic_pointer_cast<Token>(ax)->get_id();
       if (op == static_cast<TokenID>(SpecialTokenID::cons)) {
-        if (dx->type() != Type::cell) {
+        if (dx == nullptr || dx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
         }
@@ -654,7 +654,7 @@ Snippet compile(std::shared_ptr<Object> x,
                                       shift_width,
                                       shift_width + 1));
       } else if (op == static_cast<TokenID>(SpecialTokenID::car)) {
-        if (dx->type() != Type::cell) {
+        if (dx == nullptr || dx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
         }
@@ -667,7 +667,7 @@ Snippet compile(std::shared_ptr<Object> x,
         }
         snippet.push_back(Instruction(ISA::car, shift_width, shift_width));
       } else if (op == static_cast<TokenID>(SpecialTokenID::cdr)) {
-        if (dx->type() != Type::cell) {
+        if (dx == nullptr || dx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
         }
@@ -680,7 +680,7 @@ Snippet compile(std::shared_ptr<Object> x,
         }
         snippet.push_back(Instruction(ISA::cdr, shift_width, shift_width));
       } else if (op == static_cast<TokenID>(SpecialTokenID::atom)) {
-        if (dx->type() != Type::cell) {
+        if (dx == nullptr || dx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
         }
@@ -694,7 +694,7 @@ Snippet compile(std::shared_ptr<Object> x,
         }
         snippet.push_back(Instruction(ISA::atom, shift_width, shift_width));
       } else if (op == static_cast<TokenID>(SpecialTokenID::eq)) {
-        if (dx->type() != Type::cell) {
+        if (dx == nullptr || dx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
         }
