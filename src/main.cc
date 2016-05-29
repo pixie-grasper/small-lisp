@@ -556,7 +556,7 @@ class File {
 };
 
 enum class ISA {
-  load, cons,
+  load, cons, car, cdr, atom, eq
 };
 
 struct Instruction {
@@ -579,6 +579,18 @@ struct Instruction {
         break;
       case ISA::cons:
         printf("cons r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
+        break;
+      case ISA::car:
+        printf("car r%zu, r%zu\n", operand[0], operand[1]);
+        break;
+      case ISA::cdr:
+        printf("cdr r%zu, r%zu\n", operand[0], operand[1]);
+        break;
+      case ISA::atom:
+        printf("atom r%zu, r%zu\n", operand[0], operand[1]);
+        break;
+      case ISA::eq:
+        printf("eq r%zu, r%zu, r%zu\n", operand[0], operand[1], operand[2]);
         break;
     }
     return;
@@ -635,6 +647,64 @@ Snippet compile(std::shared_ptr<Object> x,
           fprintf(stderr, "error.\n");
         }
         snippet.push_back(Instruction(ISA::cons,
+                                      shift_width,
+                                      shift_width,
+                                      shift_width + 1));
+      } else if (op == static_cast<TokenID>(SpecialTokenID::car)) {
+        if (dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        snippet = compile(adx, shift_width, std::move(snippet));
+        if (ddx != nullptr) {
+          fprintf(stderr, "error.\n");
+        }
+        snippet.push_back(Instruction(ISA::car, shift_width, shift_width));
+      } else if (op == static_cast<TokenID>(SpecialTokenID::cdr)) {
+        if (dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        snippet = compile(adx, shift_width, std::move(snippet));
+        if (ddx != nullptr) {
+          fprintf(stderr, "error.\n");
+        }
+        snippet.push_back(Instruction(ISA::cdr, shift_width, shift_width));
+      } else if (op == static_cast<TokenID>(SpecialTokenID::atom)) {
+        if (dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        snippet = compile(adx, shift_width, std::move(snippet));
+        if (ddx != nullptr) {
+          fprintf(stderr, "error.\n");
+        }
+        snippet.push_back(Instruction(ISA::atom, shift_width, shift_width));
+      } else if (op == static_cast<TokenID>(SpecialTokenID::eq)) {
+        if (dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        snippet = compile(adx, shift_width, std::move(snippet));
+        if (ddx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+        }
+        auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
+        auto addx = ddx_->car();
+        auto dddx = ddx_->cdr();
+        snippet = compile(addx, shift_width + 1, std::move(snippet));
+        if (dddx != nullptr) {
+          fprintf(stderr, "error.\n");
+        }
+        snippet.push_back(Instruction(ISA::eq,
                                       shift_width,
                                       shift_width,
                                       shift_width + 1));
