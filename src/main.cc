@@ -867,9 +867,10 @@ Snippet compile(std::shared_ptr<Object> x,
         auto addx = ddx_->car();
         auto dddx = ddx_->car();
         snippet = compile(addx, file, shift_width, std::move(snippet), scope);
-        snippet.push_back(Instruction(ISA::mov,
-                                      scope->find(adx_->get_id()),
-                                      shift_width));
+        auto reg_num = scope->find(adx_->get_id());
+        if (reg_num != shift_width) {
+          snippet.push_back(Instruction(ISA::mov, reg_num, shift_width));
+        }
       }
     }
   }
