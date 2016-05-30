@@ -690,6 +690,20 @@ class Scope {
     }
     return not_found;
   }
+
+  bool define(TokenID id) {
+    if (lexical_scope.find(id) == lexical_scope.end()) {
+      auto reg_num = lexical_scope.size();
+      lexical_scope[id] = static_cast<uint64_t>(reg_num);
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  uint64_t base() {
+    return lexical_scope.size();
+  }
 };
 
 Snippet compile(std::shared_ptr<Object> x,
@@ -828,6 +842,34 @@ Snippet compile(std::shared_ptr<Object> x,
                                       shift_width,
                                       shift_width,
                                       shift_width + 1));
+      } else if (op == static_cast<TokenID>(SpecialTokenID::define)) {
+        if (dx == nullptr || dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+          return {};
+        }
+        auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+        auto adx = dx_->car();
+        auto ddx = dx_->cdr();
+        if (adx->type() != Type::token) {
+          fprintf(stderr, "error.\n");
+          return {};
+        }
+        auto adx_ = std::dynamic_pointer_cast<Token>(adx);
+        if (scope->define(adx_->get_id()) == false) {
+          fprintf(stderr, "error.\n");
+          return {};
+        }
+        if (ddx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+          return {};
+        }
+        auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
+        auto addx = ddx_->car();
+        auto dddx = ddx_->car();
+        snippet = compile(addx, file, shift_width, std::move(snippet), scope);
+        snippet.push_back(Instruction(ISA::mov,
+                                      scope->find(adx_->get_id()),
+                                      shift_width));
       }
     }
   }
@@ -836,6 +878,7 @@ Snippet compile(std::shared_ptr<Object> x,
 
 void eval(std::vector<uint8_t>&& stream) {
   File file(std::move(stream));
+  auto scope = std::make_shared<Scope>();
   for (;;) {
     // parse
     auto list = file.read();
@@ -848,7 +891,7 @@ void eval(std::vector<uint8_t>&& stream) {
     puts("");
 
     // compile
-    auto compiled = compile(list, file, 0, {}, std::make_shared<Scope>());
+    auto compiled = compile(list, file, scope->base(), {}, scope);
     compiled.print();
     puts("");
   }

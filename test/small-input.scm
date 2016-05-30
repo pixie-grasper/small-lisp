@@ -6,4 +6,6 @@
 (atom 10)
 (eq 10 20)
 
-(cons *a* *b*)
+(define a 10)
+(define b 20)
+(cons a b)
