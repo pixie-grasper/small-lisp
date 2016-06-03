@@ -9,3 +9,6 @@
 (define a 10)
 (define b 20)
 (cons a b)
+(cond ((eq 10 20) 30)
+      ((eq 10 30) 40)
+      (#t 50))

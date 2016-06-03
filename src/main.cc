@@ -559,7 +559,7 @@ class File {
 enum class ISA {
   load_true, load_false, load_number, load_character, load_string,
   load_dynamic, load_up, mov,
-  cons, car, cdr, atom, eq
+  cons, car, cdr, atom, eq, br, bfalse, label,
 };
 
 struct Instruction {
@@ -617,6 +617,15 @@ struct Instruction {
         break;
       case ISA::eq:
         printf("r%zu <- eq r%zu, r%zu\n", operand[0], operand[1], operand[2]);
+        break;
+      case ISA::br:
+        printf("br %zu\n", operand[0]);
+        break;
+      case ISA::bfalse:
+        printf("bfalse r%zu, %zu\n", operand[0], operand[1]);
+        break;
+      case ISA::label:
+        printf("label %zu:\n", operand[0]);
         break;
     }
     return;
@@ -710,7 +719,8 @@ Snippet compile(std::shared_ptr<Object> x,
              const File& file,
              uint64_t shift_width,
              struct Snippet&& snippet,
-             std::shared_ptr<Scope> scope) {
+             std::shared_ptr<Scope> scope,
+             uint64_t* max_label_id) {
   if (x->type() == Type::token) {
     auto id = std::dynamic_pointer_cast<Token>(x)->get_id();
     auto type = file.token_type_from_id(id);
@@ -752,7 +762,12 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(adx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -764,7 +779,8 @@ Snippet compile(std::shared_ptr<Object> x,
                           file,
                           shift_width + 1,
                           std::move(snippet),
-                          scope);
+                          scope,
+                          max_label_id);
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -781,7 +797,12 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(adx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -794,7 +815,12 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(adx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
         }
@@ -807,7 +833,12 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(adx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         if (ddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -821,7 +852,12 @@ Snippet compile(std::shared_ptr<Object> x,
         auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
         auto adx = dx_->car();
         auto ddx = dx_->cdr();
-        snippet = compile(adx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(adx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         if (ddx->type() != Type::cell) {
           fprintf(stderr, "error.\n");
           return {};
@@ -833,7 +869,8 @@ Snippet compile(std::shared_ptr<Object> x,
                           file,
                           shift_width + 1,
                           std::move(snippet),
-                          scope);
+                          scope,
+                          max_label_id);
         if (dddx != nullptr) {
           fprintf(stderr, "error.\n");
           return {};
@@ -866,11 +903,68 @@ Snippet compile(std::shared_ptr<Object> x,
         auto ddx_ = std::dynamic_pointer_cast<Cell>(ddx);
         auto addx = ddx_->car();
         auto dddx = ddx_->car();
-        snippet = compile(addx, file, shift_width, std::move(snippet), scope);
+        snippet = compile(addx,
+                          file,
+                          shift_width,
+                          std::move(snippet),
+                          scope,
+                          max_label_id);
         auto reg_num = scope->find(adx_->get_id());
         if (reg_num != shift_width) {
           snippet.push_back(Instruction(ISA::mov, reg_num, shift_width));
         }
+      } else if (op == static_cast<TokenID>(SpecialTokenID::cond)) {
+        if (dx == nullptr || dx->type() != Type::cell) {
+          fprintf(stderr, "error.\n");
+          return {};
+        }
+        uint64_t endif_label_id = *max_label_id;
+        ++*max_label_id;
+        while (dx != nullptr) {
+          auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
+          auto adx = dx_->car();
+          dx = dx_->cdr();
+          if (adx->type() != Type::cell) {
+            fprintf(stderr, "error.\n");
+            return {};
+          }
+          auto adx_ = std::dynamic_pointer_cast<Cell>(adx);
+          auto aadx = adx_->car();
+          auto dadx = adx_->cdr();
+          if (dadx->type() != Type::cell) {
+            fprintf(stderr, "error.\n");
+            return {};
+          }
+          auto dadx_ = std::dynamic_pointer_cast<Cell>(dadx);
+          auto adadx = dadx_->car();
+          auto ddadx = dadx_->cdr();
+          if (ddadx != nullptr) {
+            fprintf(stderr, "error.\n");
+            return {};
+          }
+          // (cond (...) (aadx adadx) ...)
+          snippet.push_back(Instruction(ISA::label, *max_label_id));
+          auto false_label_id = *max_label_id + 1;
+          *max_label_id += 1;
+          snippet = compile(aadx,
+                            file,
+                            shift_width,
+                            std::move(snippet),
+                            scope,
+                            max_label_id);
+          snippet.push_back(Instruction(ISA::bfalse,
+                                        shift_width,
+                                        false_label_id));
+          snippet = compile(adadx,
+                            file,
+                            shift_width,
+                            std::move(snippet),
+                            scope,
+                            max_label_id);
+          snippet.push_back(Instruction(ISA::br, endif_label_id));
+        }
+        snippet.push_back(Instruction(ISA::label, endif_label_id));
+        snippet.push_back(Instruction(ISA::label, *max_label_id));
       }
     }
   }
@@ -880,6 +974,7 @@ Snippet compile(std::shared_ptr<Object> x,
 void eval(std::vector<uint8_t>&& stream) {
   File file(std::move(stream));
   auto scope = std::make_shared<Scope>();
+  uint64_t max_label_id = 0;
   for (;;) {
     // parse
     auto list = file.read();
@@ -892,7 +987,12 @@ void eval(std::vector<uint8_t>&& stream) {
     puts("");
 
     // compile
-    auto compiled = compile(list, file, scope->base(), {}, scope);
+    auto compiled = compile(list,
+                            file,
+                            scope->base(),
+                            {},
+                            scope,
+                            &max_label_id);
     compiled.print();
     puts("");
   }
