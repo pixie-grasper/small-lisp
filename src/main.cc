@@ -918,8 +918,8 @@ Snippet compile(std::shared_ptr<Object> x,
           fprintf(stderr, "error.\n");
           return {};
         }
-        uint64_t endif_label_id = *max_label_id;
-        ++*max_label_id;
+        uint64_t endif_label_id = *max_label_id + 1;
+        *max_label_id += 2;
         while (dx != nullptr) {
           auto dx_ = std::dynamic_pointer_cast<Cell>(dx);
           auto adx = dx_->car();
