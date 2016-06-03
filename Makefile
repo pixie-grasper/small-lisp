@@ -16,12 +16,10 @@ PROJECT = small-lisp
 # if exists libc++, use it.
 LIBCPP = $(shell if $(CXX) dummy.cc -o dummy.out -lc++ -std=c++1y > /dev/null 2>&1; then echo '-lc++'; else echo '-lstdc++'; fi)
 
-INSTALL_DIR = $(shell cat libresearch.pc | grep 'includedir=' | sed 's/includedir=//')
-
 default: SYNTAX_CHECK $(PROJECT)
 
-build:
-	$(MKDIR) build
+$(BUILDDIR):
+	$(MKDIR) $(BUILDDIR)
 
 .PHONY: SYNTAX_CHECK
 SYNTAX_CHECK:
@@ -30,7 +28,7 @@ SYNTAX_CHECK:
 $(PROJECT): $(OBJS)
 	$(LINK) $< -o $@ $(LIBCPP) -lm
 
-$(BUILDDIR)/%.o: src/%.cc build Makefile
+$(BUILDDIR)/%.o: src/%.cc $(BUILDDIR) Makefile
 	$(CXX) -c $< -o $@ -std=c++1y -MMD -MP $(CXXWARNFLAGS)
 
 .PHONY: clean
