@@ -987,13 +987,8 @@ void eval(std::vector<uint8_t>&& stream) {
     puts("");
 
     // compile
-    auto compiled = compile(list,
-                            file,
-                            scope->base(),
-                            {},
-                            scope,
-                            &max_label_id);
-    compiled.print();
+    auto snippet = compile(list, file, scope->base(), {}, scope, &max_label_id);
+    snippet.print();
     puts("");
   }
   return;
